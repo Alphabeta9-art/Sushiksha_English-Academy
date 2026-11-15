@@ -1,0 +1,22 @@
+package com.google.android.gms.internal.auth;
+
+/* JADX INFO: compiled from: com.google.android.gms:play-services-auth-base@@18.0.4 */
+/* JADX INFO: loaded from: classes11.dex */
+final class zzds {
+    public int zza;
+    public long zzb;
+    public Object zzc;
+    public final zzek zzd;
+
+    zzds() {
+        int i = zzek.zzb;
+        throw null;
+    }
+
+    zzds(zzek zzekVar) {
+        if (zzekVar == null) {
+            throw null;
+        }
+        this.zzd = zzekVar;
+    }
+}

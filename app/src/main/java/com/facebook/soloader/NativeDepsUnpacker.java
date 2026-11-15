@@ -1,0 +1,279 @@
+package com.facebook.soloader;
+
+import android.content.Context;
+import java.io.EOFException;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.RandomAccessFile;
+import java.util.Arrays;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
+import javax.annotation.Nullable;
+
+/* JADX INFO: loaded from: classes11.dex */
+public final class NativeDepsUnpacker {
+    private static final String APK_IDENTIFIER_FILE_NAME = "apk_id";
+    private static final String LOCK_FILE_NAME = "lock";
+    private static final String NATIVE_DEPS_DIR_NAME = "native_deps";
+    private static final String NATIVE_DEPS_FILE_APK_PATH = "assets/native_deps.txt";
+    private static final String NATIVE_DEPS_FILE_NAME = "deps";
+    private static final byte STATE_CLEAN = 1;
+    private static final byte STATE_DIRTY = 0;
+    private static final String STATE_FILE_NAME = "state";
+
+    private NativeDepsUnpacker() {
+    }
+
+    public static File getNativeDepsFilePath(Context context) {
+        return new File(getNativeDepsDir(context), NATIVE_DEPS_FILE_NAME);
+    }
+
+    public static File getNativeDepsDir(Context context) {
+        return new File(context.getApplicationInfo().dataDir, NATIVE_DEPS_DIR_NAME);
+    }
+
+    public static void ensureNativeDepsAvailable(Context context) throws IOException {
+        File dir = getNativeDepsDir(context);
+        if (!ensureDirExists(dir)) {
+            return;
+        }
+        File lockFile = new File(dir, LOCK_FILE_NAME);
+        FileLocker lock = SysUtil.getOrCreateLockOnDir(dir, lockFile, true);
+        try {
+            byte state = readState(dir);
+            if (state == 1 && apkChanged(context, dir)) {
+                state = 0;
+            }
+            if (state != 1) {
+                writeState(dir, (byte) 0);
+                extractNativeDeps(context);
+                writeApkIdentifier(context, dir);
+                SysUtil.fsyncRecursive(dir);
+                writeState(dir, (byte) 1);
+                if (lock != null) {
+                    lock.close();
+                    return;
+                }
+                return;
+            }
+            if (lock != null) {
+                lock.close();
+            }
+        } catch (Throwable th) {
+            if (lock != null) {
+                try {
+                    lock.close();
+                } catch (Throwable th2) {
+                    th.addSuppressed(th2);
+                }
+            }
+            throw th;
+        }
+    }
+
+    private static boolean ensureDirExists(File dir) {
+        if (dir.exists() && !dir.isDirectory()) {
+            dir.delete();
+        }
+        if (!dir.exists()) {
+            dir.mkdir();
+        }
+        if (!dir.isDirectory()) {
+            return false;
+        }
+        return true;
+    }
+
+    private static byte[] getApkIdentifier(Context context) throws IOException {
+        File apk = new File(context.getApplicationInfo().sourceDir);
+        return SysUtil.makeApkDepBlock(apk, context);
+    }
+
+    static byte[] readAllBytes(InputStream in, int length) throws IOException {
+        byte[] buffer = new byte[length];
+        int offset = 0;
+        while (offset < length) {
+            int bytesRead = in.read(buffer, offset, length - offset);
+            if (bytesRead == -1) {
+                throw new EOFException("EOF found unexpectedly");
+            }
+            if (offset + bytesRead > length) {
+                throw new IllegalStateException("Read more bytes than expected");
+            }
+            offset += bytesRead;
+        }
+        return buffer;
+    }
+
+    static byte[] readNativeDepsFromDisk(Context context) throws IOException {
+        File file = getNativeDepsFilePath(context);
+        FileInputStream in = new FileInputStream(file);
+        try {
+            byte[] allBytes = readAllBytes(in, (int) file.length());
+            in.close();
+            return allBytes;
+        } catch (Throwable th) {
+            try {
+                in.close();
+            } catch (Throwable th2) {
+                th.addSuppressed(th2);
+            }
+            throw th;
+        }
+    }
+
+    static byte[] readNativeDepsFromApk(Context context) throws IOException {
+        File apk = new File(context.getApplicationInfo().sourceDir);
+        ZipFile zipFile = new ZipFile(apk);
+        try {
+            ZipEntry nativeDepsEntry = zipFile.getEntry(NATIVE_DEPS_FILE_APK_PATH);
+            if (nativeDepsEntry == null) {
+                throw new FileNotFoundException("Could not find native_deps file in APK");
+            }
+            InputStream nativeDepsIs = zipFile.getInputStream(nativeDepsEntry);
+            try {
+                if (nativeDepsIs == null) {
+                    throw new FileNotFoundException("Failed to read native_deps file from APK");
+                }
+                byte[] allBytes = readAllBytes(nativeDepsIs, (int) nativeDepsEntry.getSize());
+                if (nativeDepsIs != null) {
+                    nativeDepsIs.close();
+                }
+                zipFile.close();
+                return allBytes;
+            } catch (Throwable th) {
+                if (nativeDepsIs != null) {
+                    try {
+                        nativeDepsIs.close();
+                    } catch (Throwable th2) {
+                        th.addSuppressed(th2);
+                    }
+                }
+                throw th;
+            }
+        } catch (Throwable th3) {
+            try {
+                zipFile.close();
+            } catch (Throwable th4) {
+                th3.addSuppressed(th4);
+            }
+            throw th3;
+        }
+    }
+
+    private static void extractNativeDeps(Context context) throws IOException {
+        byte[] newDeps = readNativeDepsFromApk(context);
+        byte[] apkIdentifier = getApkIdentifier(context);
+        int depsLen = newDeps.length;
+        File depsFileName = getNativeDepsFilePath(context);
+        RandomAccessFile depsFile = new RandomAccessFile(depsFileName, "rw");
+        try {
+            depsFile.write(apkIdentifier);
+            depsFile.writeInt(depsLen);
+            depsFile.write(newDeps);
+            depsFile.setLength(depsFile.getFilePointer());
+            depsFile.close();
+        } catch (Throwable th) {
+            try {
+                depsFile.close();
+            } catch (Throwable th2) {
+                th.addSuppressed(th2);
+            }
+            throw th;
+        }
+    }
+
+    private static void writeApkIdentifier(Context context, File dir) throws IOException {
+        File apkIdentifierFileName = new File(dir, APK_IDENTIFIER_FILE_NAME);
+        byte[] apkIdentifier = getApkIdentifier(context);
+        RandomAccessFile apkIdentifierFile = new RandomAccessFile(apkIdentifierFileName, "rw");
+        try {
+            apkIdentifierFile.write(apkIdentifier);
+            apkIdentifierFile.setLength(apkIdentifierFile.getFilePointer());
+            apkIdentifierFile.close();
+        } catch (Throwable th) {
+            try {
+                apkIdentifierFile.close();
+            } catch (Throwable th2) {
+                th.addSuppressed(th2);
+            }
+            throw th;
+        }
+    }
+
+    private static void writeState(File dir, byte state) throws IOException {
+        File stateFileName = new File(dir, STATE_FILE_NAME);
+        RandomAccessFile stateFile = new RandomAccessFile(stateFileName, "rw");
+        try {
+            stateFile.seek(0L);
+            stateFile.write(state);
+            stateFile.setLength(stateFile.getFilePointer());
+            stateFile.getFD().sync();
+            stateFile.close();
+        } catch (Throwable th) {
+            try {
+                stateFile.close();
+            } catch (Throwable th2) {
+                th.addSuppressed(th2);
+            }
+            throw th;
+        }
+    }
+
+    private static byte readState(File dir) throws IOException {
+        byte state;
+        File stateFileName = new File(dir, STATE_FILE_NAME);
+        RandomAccessFile stateFile = new RandomAccessFile(stateFileName, "rw");
+        try {
+            state = stateFile.readByte();
+            if (state != 1) {
+                state = 0;
+            }
+        } catch (EOFException e) {
+            state = 0;
+        } catch (Throwable th) {
+            try {
+                stateFile.close();
+            } catch (Throwable th2) {
+                th.addSuppressed(th2);
+            }
+            throw th;
+        }
+        stateFile.close();
+        return state;
+    }
+
+    @Nullable
+    private static byte[] getExistingApkIdentifier(Context context, File dir) throws IOException {
+        File apkIdentifierFileName = new File(dir, APK_IDENTIFIER_FILE_NAME);
+        RandomAccessFile apkIdentifierFile = new RandomAccessFile(apkIdentifierFileName, "rw");
+        try {
+            byte[] existingDeps = new byte[(int) apkIdentifierFile.length()];
+            if (apkIdentifierFile.read(existingDeps) != existingDeps.length) {
+                apkIdentifierFile.close();
+                return null;
+            }
+            apkIdentifierFile.close();
+            return existingDeps;
+        } catch (Throwable th) {
+            try {
+                apkIdentifierFile.close();
+            } catch (Throwable th2) {
+                th.addSuppressed(th2);
+            }
+            throw th;
+        }
+    }
+
+    private static boolean apkChanged(Context context, File dir) throws IOException {
+        byte[] existingApkId = getExistingApkIdentifier(context, dir);
+        byte[] currentApkId = getApkIdentifier(context);
+        if (existingApkId == null || currentApkId == null || existingApkId.length != currentApkId.length) {
+            return true;
+        }
+        return !Arrays.equals(existingApkId, currentApkId);
+    }
+}

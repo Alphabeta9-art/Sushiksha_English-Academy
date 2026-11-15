@@ -1,0 +1,62 @@
+package com.google.android.recaptcha.internal;
+
+import androidx.constraintlayout.core.motion.utils.TypedValues;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.SocketTimeoutException;
+import java.net.UnknownServiceException;
+
+/* JADX INFO: compiled from: com.google.android.recaptcha:recaptcha@@18.5.1 */
+/* JADX INFO: loaded from: classes12.dex */
+public final class zzdr {
+    public static final InputStream zzc(HttpURLConnection httpURLConnection) throws zzbj {
+        try {
+            return httpURLConnection.getInputStream();
+        } catch (UnknownServiceException e) {
+            throw new zzbj(zzbh.zzc, zzbg.zzag, e.getMessage());
+        } catch (IOException e2) {
+            throw new zzbj(zzbh.zzc, zzbg.zzaf, e2.getMessage());
+        } catch (Exception e3) {
+            throw new zzbj(zzbh.zzc, zzbg.zzal, e3.getMessage());
+        }
+    }
+
+    public static final OutputStream zzd(HttpURLConnection httpURLConnection) throws zzbj {
+        try {
+            return httpURLConnection.getOutputStream();
+        } catch (UnknownServiceException e) {
+            throw new zzbj(zzbh.zzc, zzbg.zzag, e.getMessage());
+        } catch (IOException e2) {
+            throw new zzbj(zzbh.zzc, zzbg.zzaf, e2.getMessage());
+        } catch (Exception e3) {
+            throw new zzbj(zzbh.zzc, zzbg.zzal, e3.getMessage());
+        }
+    }
+
+    public static final void zza(HttpURLConnection httpURLConnection) throws zzbj {
+        try {
+            httpURLConnection.connect();
+        } catch (SocketTimeoutException e) {
+            throw new zzbj(zzbh.zzc, zzbg.zzad, e.getMessage());
+        } catch (IOException e2) {
+            throw new zzbj(zzbh.zzc, zzbg.zzae, e2.getMessage());
+        } catch (Exception e3) {
+            throw new zzbj(zzbh.zzc, zzbg.zzak, e3.getMessage());
+        }
+    }
+
+    public static final zzbj zzb(int i) {
+        switch (i) {
+            case TypedValues.CycleType.TYPE_ALPHA /* 403 */:
+                return new zzbj(zzbh.zzi, zzbg.zzJ, null);
+            case 404:
+                return new zzbj(zzbh.zzc, zzbg.zzi, null);
+            case TypedValues.PositionType.TYPE_PERCENT_WIDTH /* 503 */:
+                return new zzbj(zzbh.zzi, zzbg.zzJ, null);
+            default:
+                return new zzbj(zzbh.zzb, zzbg.zzK, null);
+        }
+    }
+}

@@ -1,0 +1,45 @@
+package com.facebook.imagepipeline.datasource;
+
+import android.graphics.Bitmap;
+import com.facebook.common.references.CloseableReference;
+import com.facebook.datasource.BaseDataSubscriber;
+import com.facebook.datasource.DataSource;
+import com.facebook.imagepipeline.image.CloseableBitmap;
+import com.facebook.imagepipeline.image.CloseableImage;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import javax.annotation.Nullable;
+
+/* JADX INFO: loaded from: classes11.dex */
+public abstract class BaseListBitmapDataSubscriber extends BaseDataSubscriber<List<CloseableReference<CloseableImage>>> {
+    protected abstract void onNewResultListImpl(@Nullable List<Bitmap> list);
+
+    @Override // com.facebook.datasource.BaseDataSubscriber
+    public void onNewResultImpl(DataSource<List<CloseableReference<CloseableImage>>> dataSource) {
+        if (!dataSource.isFinished()) {
+            return;
+        }
+        List<CloseableReference<CloseableImage>> imageRefList = dataSource.getResult();
+        if (imageRefList == null) {
+            onNewResultListImpl(null);
+            return;
+        }
+        try {
+            List<Bitmap> bitmapList = new ArrayList<>(imageRefList.size());
+            for (CloseableReference<CloseableImage> closeableImageRef : imageRefList) {
+                if (closeableImageRef != null && (closeableImageRef.get() instanceof CloseableBitmap)) {
+                    bitmapList.add(((CloseableBitmap) closeableImageRef.get()).getUnderlyingBitmap());
+                } else {
+                    bitmapList.add(null);
+                }
+            }
+            onNewResultListImpl(bitmapList);
+        } finally {
+            Iterator<CloseableReference<CloseableImage>> it = imageRefList.iterator();
+            while (it.hasNext()) {
+                CloseableReference.closeSafely(it.next());
+            }
+        }
+    }
+}

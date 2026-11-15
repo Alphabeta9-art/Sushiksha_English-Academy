@@ -1,0 +1,5 @@
+package com.google.common.annotations;
+
+/* JADX INFO: loaded from: classes12.dex */
+public @interface VisibleForTesting {
+}

@@ -1,0 +1,19 @@
+package com.google.android.material.progressindicator;
+
+import android.content.ContentResolver;
+import android.os.Build;
+import android.provider.Settings;
+
+/* JADX INFO: loaded from: classes12.dex */
+public class AnimatorDurationScaleProvider {
+    private static float defaultSystemAnimatorDurationScale = 1.0f;
+
+    public float getSystemAnimatorDurationScale(ContentResolver contentResolver) {
+        int i = Build.VERSION.SDK_INT;
+        return Settings.Global.getFloat(contentResolver, "animator_duration_scale", 1.0f);
+    }
+
+    public static void setDefaultSystemAnimatorDurationScale(float scale) {
+        defaultSystemAnimatorDurationScale = scale;
+    }
+}

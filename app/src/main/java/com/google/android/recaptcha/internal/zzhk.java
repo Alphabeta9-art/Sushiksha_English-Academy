@@ -1,0 +1,21 @@
+package com.google.android.recaptcha.internal;
+
+import java.nio.charset.Charset;
+
+/* JADX INFO: compiled from: com.google.android.recaptcha:recaptcha@@18.5.1 */
+/* JADX INFO: loaded from: classes12.dex */
+abstract class zzhk implements zzho {
+    zzhk() {
+    }
+
+    @Override // com.google.android.recaptcha.internal.zzho
+    public final zzhn zza(CharSequence charSequence, Charset charset) {
+        zzhp zzhpVarZzb = zzb();
+        byte[] bytes = charSequence.toString().getBytes(charset);
+        if (bytes == null) {
+            throw null;
+        }
+        ((zzhj) zzhpVarZzb).zza(bytes, 0, bytes.length);
+        return zzhpVarZzb.zzb();
+    }
+}
